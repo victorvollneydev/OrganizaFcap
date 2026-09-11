@@ -1,0 +1,57 @@
+# ==============================
+# Ambientes Virtuais e Python
+# ==============================
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Arquivos de Teste / Cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ==============================
+# Variáveis de Ambiente e Segredos
+# ==============================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ==============================
+# Dependências e Builds do Frontend (Node / Vite)
+# ==============================
+node_modules/
+dist/
+dist-ssr/
+build/
+*.local
+
+# Logs de depuração
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ==============================
+# Bancos Locais e Migrações
+# ==============================
+*.sqlite3
+*.db
+
+# ==============================
+# IDEs e Editores
+# ==============================
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
