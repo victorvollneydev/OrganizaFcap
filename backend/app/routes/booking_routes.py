@@ -1,74 +1,72 @@
 from flask import Blueprint, request, jsonify
-from datetime import datetime
-from app.database import db
-from app.models.booking import Booking
-from app.models.room import Room
-from app.services.booking_service import check_room_conflict
+from flask_jwt_extended import jwt_required, get_jwt
+from app.services.booking_service import BookingService
 
-booking_bp = Blueprint("bookings", __name__, url_prefix="/api/bookings")
+booking_bp = Blueprint("bookings", __name__)
+
+def is_coordenacao():
+    """Verifica se o usuário logado possui perfil de coordenação."""
+    claims = get_jwt()
+    return claims.get("role") == "coordenacao"
 
 @booking_bp.route("", methods=["GET"])
+@jwt_required()
 def get_bookings():
-    """Lista todas as reservas cadastradas em ordem cronológica."""
-    bookings = Booking.query.order_by(Booking.start_time.asc()).all()
+    """Tanto professores quanto coordenação podem visualizar os agendamentos."""
+    bookings = BookingService.get_all_bookings()
     return jsonify([b.to_dict() for b in bookings]), 200
 
 @booking_bp.route("", methods=["POST"])
+@jwt_required()
 def create_booking():
-    """Cria uma nova reserva validando choques de horário."""
-    data = request.get_json()
+    """Apenas coordenação pode criar reservas."""
+    if not is_coordenacao():
+        return jsonify({"error": "Acesso restrito: apenas a coordenação pode criar agendamentos."}), 403
 
-    # 1. Validação de campos obrigatórios
-    required_fields = ["room_id", "professor_name", "subject", "turn", "start_time", "end_time"]
-    for field in required_fields:
-        if not data.get(field):
-            return jsonify({"error": f"O campo '{field}' é obrigatório."}), 400
-
-    # 2. Verifica se a sala existe
-    room = db.session.get(Room, data["room_id"])
-    if not room:
-        return jsonify({"error": "Sala informada não foi encontrada."}), 404
-
-    # 3. Conversão de datas (formato ISO: YYYY-MM-DDTHH:MM:SS)
+    data = request.get_json() or {}
     try:
-        start = datetime.fromisoformat(data["start_time"])
-        end = datetime.fromisoformat(data["end_time"])
-    except ValueError:
-        return jsonify({"error": "Formato de data/hora inválido. Use o padrão ISO (ex: 2026-09-08T08:00:00)."}), 400
-
-    if start >= end:
-        return jsonify({"error": "O horário de início deve ser anterior ao horário de término."}), 400
-
-    # 4. Checagem de choque de horários na mesma sala
-    conflict = check_room_conflict(data["room_id"], start, end)
-    if conflict:
+        booking = BookingService.create_booking(data)
         return jsonify({
-            "error": "Choque de horários!",
-            "message": f"A sala '{room.name}' já está ocupada por {conflict.professor_name} ({conflict.subject}) nesse horário."
-        }), 409
+            "message": "Reserva criada com sucesso.",
+            "booking": booking.to_dict()
+        }), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        import traceback
+        traceback.print_exc()  # Imprime o erro exato no terminal
+        return jsonify({"error": str(e)}), 500
 
-    # 5. Salva a reserva no PostgreSQL
-    new_booking = Booking(
-        room_id=data["room_id"],
-        professor_name=data["professor_name"],
-        subject=data["subject"],
-        turn=data["turn"],
-        start_time=start,
-        end_time=end
-    )
+@booking_bp.route("/<int:booking_id>", methods=["PUT"])
+@jwt_required()
+def edit_booking(booking_id):
+    """Apenas coordenação pode editar reservas existentes."""
+    if not is_coordenacao():
+        return jsonify({"error": "Acesso restrito: apenas a coordenação pode editar agendamentos."}), 403
 
-    db.session.add(new_booking)
-    db.session.commit()
-
-    return jsonify(new_booking.to_dict()), 201
+    data = request.get_json() or {}
+    try:
+        updated = BookingService.update_booking(booking_id, data)
+        return jsonify({
+            "message": "Reserva atualizada com sucesso.",
+            "booking": updated.to_dict()
+        }), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": "Erro interno ao atualizar a reserva."}), 500
 
 @booking_bp.route("/<int:booking_id>", methods=["DELETE"])
+@jwt_required()
 def delete_booking(booking_id):
-    """Cancela/remove um agendamento."""
-    booking = db.session.get(Booking, booking_id)
-    if not booking:
-        return jsonify({"error": "Reserva não encontrada."}), 404
+    """Apenas coordenação pode excluir reservas."""
+    if not is_coordenacao():
+        return jsonify({"error": "Acesso restrito: apenas a coordenação pode cancelar agendamentos."}), 403
 
-    db.session.delete(booking)
-    db.session.commit()
-    return jsonify({"message": "Reserva cancelada com sucesso!"}), 200
+    try:
+        BookingService.delete_booking(booking_id)
+        return jsonify({"message": "Reserva cancelada com sucesso."}), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        return jsonify({"error": "Erro interno ao cancelar reserva."}), 500
