@@ -14,32 +14,45 @@ def run_seed():
   with app.app_context():
     print("Iniciando população do banco de dados no Neon...")
 
-    # 1. Limpeza segura das tabelas
-    Booking.query.delete()
-    Room.query.delete()
-    User.query.delete()
-    db.session.commit()
-    print("Tabelas limpas com sucesso.")
+    # 1. Recupera as senhas das variáveis de ambiente com validação
+    coord_password = os.getenv("DEFAULT_COORD_PASSWORD")
+    prof_password = os.getenv("DEFAULT_PROF_PASSWORD")
 
-    # 2. Cadastro dos Usuários do Sistema usando bcrypt via set_password
+    if not coord_password or not prof_password:
+      raise ValueError(
+          "ERRO: As variáveis DEFAULT_COORD_PASSWORD e DEFAULT_PROF_PASSWORD "
+          "precisam estar definidas no arquivo .env!"
+      )
+
+    # 2. Limpeza segura das tabelas e reset dos IDs para 1
+    db.session.execute(
+        db.text(
+            "TRUNCATE TABLE bookings, rooms, users RESTART IDENTITY CASCADE;"
+        )
+    )
+    db.session.commit()
+    print("Tabelas limpas e IDs reiniciados.")
+
+    # 3. Cadastro dos Usuários do Sistema
     coord = User(
         name="Coordenação Setorial FCAP",
         email="coordenacao@fcap.br",
         role="coordenacao",
     )
-    coord.set_password(os.getenv("DEFAULT_COORD_PASSWORD", "FcapCoord2026@"))
+    coord.set_password(coord_password)
 
     prof = User(
         name="Corpo Docente FCAP",
         email="professor@fcap.br",
         role="professor",
     )
-    prof.set_password(os.getenv("DEFAULT_PROF_PASSWORD", "FcapProf2026@"))
+    prof.set_password(prof_password)
 
     db.session.add_all([coord, prof])
     db.session.commit()
-    print("Usuários (Coordenação e Professor) inseridos com hash Bcrypt.")
+    print("Usuários cadastrados com senhas seguras.")
 
+    # 4. Cadastro das Salas
     rooms_data = [
         # Bloco A
         {"name": "Sala 9º Período", "building": "Bloco A", "floor": "2º Andar"},
