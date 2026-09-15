@@ -1,35 +1,58 @@
-const BASE_URL = 'http://localhost:5000/api';
+import api from '../services/api';
 
 export async function fetchRooms() {
-  const response = await fetch(`${BASE_URL}/rooms`);
-  if (!response.ok) throw new Error('Erro ao carregar salas.');
-  return response.json();
+  try {
+    const response = await api.get('/rooms');
+    return response.data;
+  } catch (err) {
+    throw new Error(err.response?.data?.error || 'Erro ao carregar salas.');
+  }
 }
 
 export async function fetchBookings() {
-  const response = await fetch(`${BASE_URL}/bookings`);
-  if (!response.ok) throw new Error('Erro ao carregar reservas.');
-  return response.json();
+  try {
+    const response = await api.get('/bookings');
+    return response.data;
+  } catch (err) {
+    throw new Error(err.response?.data?.error || 'Erro ao carregar reservas.');
+  }
 }
 
 export async function createBooking(data) {
-  const response = await fetch(`${BASE_URL}/bookings`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(result.message || result.error || 'Erro ao realizar agendamento.');
+  try {
+    const response = await api.post('/bookings', data);
+    return response.data;
+  } catch (err) {
+    const message =
+      err.response?.data?.message ||
+      err.response?.data?.error ||
+      'Erro ao realizar agendamento.';
+    throw new Error(message);
   }
-  return result;
 }
 
 export async function deleteBooking(id) {
-  const response = await fetch(`${BASE_URL}/bookings/${id}`, {
-    method: 'DELETE',
-  });
-  if (!response.ok) throw new Error('Erro ao cancelar agendamento.');
-  return response.json();
+  try {
+    const response = await api.delete(`/bookings/${id}`);
+    return response.data;
+  } catch (err) {
+    const message =
+      err.response?.data?.message ||
+      err.response?.data?.error ||
+      'Erro ao cancelar agendamento.';
+    throw new Error(message);
+  }
+}
+
+export async function updateBooking(id, data) {
+  try {
+    const response = await api.put(`/bookings/${id}`, data);
+    return response.data;
+  } catch (err) {
+    const message =
+      err.response?.data?.message ||
+      err.response?.data?.error ||
+      'Erro ao atualizar agendamento.';
+    throw new Error(message);
+  }
 }
