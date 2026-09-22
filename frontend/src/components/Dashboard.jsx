@@ -312,7 +312,7 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500 border border-amber-600"></span>
-                    <span>Evento / Extra</span>
+                    <span>Eventual / Extra</span>
                   </div>
                 </div>
               </div>
@@ -389,7 +389,7 @@ export default function Dashboard({ user, onLogout }) {
                                 ? 'bg-amber-100 text-amber-900 border border-amber-300' 
                                 : 'bg-blue-100 text-blue-900 border border-blue-200'
                             }`}>
-                              {isEventual ? 'Evento / Extra' : 'Regular'}
+                              {isEventual ? 'Eventual / Extra' : 'Regular'}
                             </span>
 
                             <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-white/80 text-slate-700 border border-slate-200 truncate max-w-[120px]">
@@ -453,7 +453,7 @@ export default function Dashboard({ user, onLogout }) {
             </div>
 
             <form onSubmit={handleSubmitBooking} className="space-y-4">
-              {/* Seletor de Tipo de Atividade Sóbrio */}
+              {/* Seletor de Tipo de Atividade */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1.5">
                   Tipo de Ocupação
@@ -479,7 +479,7 @@ export default function Dashboard({ user, onLogout }) {
                         : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
-                    Evento / Aula Extra
+                    Eventual / Aula Extra
                   </button>
                 </div>
               </div>
@@ -520,6 +520,7 @@ export default function Dashboard({ user, onLogout }) {
                   <option value="Mestrado">Mestrado</option>
                   <option value="Escola de Aplicação">Escola de Aplicação</option>
                   <option value="Empresa Júnior">Empresa Júnior</option>
+                  <option value="Evento">Evento</option>
                 </select>
               </div>
 
