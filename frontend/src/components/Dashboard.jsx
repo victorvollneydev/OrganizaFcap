@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchRooms, fetchBookings, createBooking, deleteBooking, updateBooking } from '../api/bookingApi';
-import { Clock, User, BookOpen, Plus, Trash2, Edit, AlertCircle, CheckCircle, LogOut } from 'lucide-react';
+import { Clock, User, BookOpen, GraduationCap, Plus, Trash2, Edit, AlertCircle, CheckCircle, LogOut } from 'lucide-react';
 import logoIcon from '../assets/logo-icon.png';
 
 const DAYS_OF_WEEK = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
@@ -43,7 +43,7 @@ const TURN_HOURS = {
 };
 
 export default function Dashboard({ user, onLogout }) {
-  // Controle de Permissão alinhado ao backend Flask ('coordenacao' vs 'professor')
+  // Controlo de permissão ('coordenacao' vs 'professor')
   const isCoordenacao = user?.role === 'coordenacao';
 
   const [rooms, setRooms] = useState([]);
@@ -51,7 +51,7 @@ export default function Dashboard({ user, onLogout }) {
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  // Controle do Modal
+  // Controlo do Modal
   const [showModal, setShowModal] = useState(false);
   const [editBookingId, setEditBookingId] = useState(null);
 
@@ -89,7 +89,7 @@ export default function Dashboard({ user, onLogout }) {
     }
   }
 
-  // Apenas coordenação pode abrir o modal de criação
+  // Apenas a coordenação pode abrir o modal de criação
   function handleOpenNewModal() {
     if (!isCoordenacao) return;
     setEditBookingId(null);
@@ -103,7 +103,7 @@ export default function Dashboard({ user, onLogout }) {
     setShowModal(true);
   }
 
-  // Apenas coordenação pode abrir o modal de edição
+  // Apenas a coordenação pode abrir o modal de edição
   function handleEditClick(booking) {
     if (!isCoordenacao) return;
     const datePart = booking.start_time.split('T')[0];
@@ -160,7 +160,7 @@ export default function Dashboard({ user, onLogout }) {
   // Cancelamento de reserva
   async function handleDeleteBooking(id) {
     if (!isCoordenacao) return;
-    if (!window.confirm('Tem certeza que deseja cancelar esta reserva?')) return;
+    if (!window.confirm('Tem a certeza de que deseja cancelar esta reserva?')) return;
     try {
       await deleteBooking(id);
       loadData();
@@ -189,7 +189,6 @@ export default function Dashboard({ user, onLogout }) {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* O botão 'Nova Reserva' só aparece para quem for da Coordenação */}
             {isCoordenacao && (
               <button
                 onClick={handleOpenNewModal}
@@ -314,12 +313,17 @@ export default function Dashboard({ user, onLogout }) {
           <div className="grid grid-cols-6 bg-slate-100 border-b border-slate-200 text-center font-bold text-slate-700 py-3">
             <div className="text-slate-500 font-medium">Turno</div>
             {DAYS_OF_WEEK.map((day) => (
-              <div key={day}>{day}</div>
+              <div key={day} className="flex flex-col items-center">
+                <span>{day}</span>
+                <span className="text-[11px] font-normal text-slate-400">
+                  {WEEK_DATES[day]?.split('-').reverse().slice(0, 2).join('/')}
+                </span>
+              </div>
             ))}
           </div>
 
           {TURNS.map((turn) => (
-            <div key={turn} className="grid grid-cols-6 border-b border-slate-100 min-h-[120px]">
+            <div key={turn} className="grid grid-cols-6 border-b border-slate-100 min-h-[130px]">
               <div className="p-4 bg-slate-50/50 border-r border-slate-200 flex flex-col justify-center items-center text-center">
                 <span className="font-bold text-slate-800">{turn}</span>
                 <span className="text-xs text-slate-400 mt-1 flex items-center gap-1">
@@ -329,19 +333,19 @@ export default function Dashboard({ user, onLogout }) {
               </div>
 
               {DAYS_OF_WEEK.map((day) => {
-                const datePrefix = WEEK_DATES[day];
+                const targetDate = WEEK_DATES[day];
                 const booking = activeBookings.find(
-                  (b) => b.turn === turn && b.start_time.startsWith(datePrefix)
+                  (b) => b.turn === turn && b.start_time && b.start_time.split('T')[0] === targetDate
                 );
 
                 return (
                   <div key={day} className="p-2 border-r border-slate-100 flex flex-col justify-center">
                     {booking ? (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm flex flex-col justify-between h-full shadow-sm relative group">
+                      <div className="bg-blue-50/80 border border-blue-200 rounded-lg p-3 text-sm flex flex-col justify-between h-full shadow-sm relative group">
                         
-                        {/* Botões de Ação visíveis exclusivamente para a Coordenação */}
+                        {/* Botões de Ação para a Coordenação */}
                         {isCoordenacao && (
-                          <div className="absolute top-2 right-2 flex gap-2">
+                          <div className="absolute top-2 right-2 flex gap-1.5 bg-white/80 p-1 rounded-md shadow-xs">
                             <button
                               onClick={() => handleEditClick(booking)}
                               className="text-slate-400 hover:text-blue-600 transition cursor-pointer"
@@ -360,16 +364,30 @@ export default function Dashboard({ user, onLogout }) {
                         )}
 
                         <div>
-                          <div className={`font-semibold text-blue-900 flex items-center gap-1.5 line-clamp-1 ${isCoordenacao ? 'pr-10' : ''}`}>
+                          {/* Tag com o Curso selecionado */}
+                          {booking.course && (
+                            <div className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1.5 uppercase tracking-wide">
+                              <GraduationCap size={11} />
+                              <span className="truncate max-w-[130px]">{booking.course}</span>
+                            </div>
+                          )}
+
+                          {/* Disciplina / Finalidade */}
+                          <div className={`font-semibold text-blue-950 flex items-center gap-1.5 line-clamp-2 leading-tight ${isCoordenacao ? 'pr-8' : ''}`}>
                             <BookOpen size={14} className="text-blue-600 flex-shrink-0" />
                             <span>{booking.subject}</span>
                           </div>
-                          <div className="text-slate-600 text-xs mt-2 flex items-center gap-1.5">
-                            <User size={13} className="text-slate-400 flex-shrink-0" />
-                            <span>{booking.professor_name}</span>
-                          </div>
+
+                          {/* Nome do Professor */}
+                          {booking.professor_name && (
+                            <div className="text-slate-600 text-xs mt-1.5 flex items-center gap-1.5">
+                              <User size={13} className="text-slate-400 flex-shrink-0" />
+                              <span className="truncate">{booking.professor_name}</span>
+                            </div>
+                          )}
                         </div>
-                        <div className="mt-2 text-[11px] font-semibold text-blue-700 uppercase tracking-wide">
+
+                        <div className="mt-2 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded text-center w-fit uppercase tracking-wider">
                           Ocupado
                         </div>
                       </div>
@@ -470,7 +488,7 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
               </div>
 
-              {/* Professor: Oculto se for Empresa Júnior */}
+              {/* Professor */}
               {!semProfessor && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Professor(a)</label>
@@ -485,7 +503,7 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
               )}
 
-              {/* Disciplina: Oculta para Pós, Mestrado, Escola de Aplicação e Empresa Júnior */}
+              {/* Disciplina */}
               {!semDisciplina && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Disciplina</label>
