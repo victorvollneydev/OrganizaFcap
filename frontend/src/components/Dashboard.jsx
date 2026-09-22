@@ -365,12 +365,12 @@ export default function Dashboard({ user, onLogout }) {
 
                         <div>
                           {/* Tag com o Curso selecionado */}
-                          {booking.course && (
-                            <div className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1.5 uppercase tracking-wide">
-                              <GraduationCap size={11} />
-                              <span className="truncate max-w-[130px]">{booking.course}</span>
-                            </div>
-                          )}
+                          <div className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1.5 uppercase tracking-wide">
+                            <GraduationCap size={11} className="flex-shrink-0" />
+                            <span clasName="truncate max-w-[140px]">
+                              {booking.course || 'Geral'}
+                            </span>
+                          </div>
 
                           {/* Disciplina / Finalidade */}
                           <div className={`font-semibold text-blue-950 flex items-center gap-1.5 line-clamp-2 leading-tight ${isCoordenacao ? 'pr-8' : ''}`}>
