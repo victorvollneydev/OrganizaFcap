@@ -14,6 +14,7 @@ class BookingService:
         course = data.get("course")
         start_time_str = data.get("start_time")
         end_time_str = data.get("end_time")
+        reservation_type = data.get("reservation_type", "recorrente")
 
         if not all([room_id, course, start_time_str, end_time_str, data.get("professor_name"), data.get("subject"), data.get("turn")]):
             raise ValueError("Todos os campos obrigatórios devem ser preenchidos.")
@@ -49,6 +50,7 @@ class BookingService:
             professor_name=data.get("professor_name"),
             subject=data.get("subject"),
             course=course,
+            reservation_type=reservation_type,
             turn=data.get("turn"),
             start_time=start_time,
             end_time=end_time
@@ -94,6 +96,7 @@ class BookingService:
         booking.professor_name = data.get("professor_name", booking.professor_name)
         booking.subject = data.get("subject", booking.subject)
         booking.turn = data.get("turn", booking.turn)
+        booking.reservation_type = data.get("reservation_type", getattr(booking, "reservation_type", "recorrente"))
         booking.start_time = start_time
         booking.end_time = end_time
 

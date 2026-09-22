@@ -43,7 +43,6 @@ const TURN_HOURS = {
 };
 
 export default function Dashboard({ user, onLogout }) {
-  // Controlo de permissão ('coordenacao' vs 'professor')
   const isCoordenacao = user?.role === 'coordenacao';
 
   const [rooms, setRooms] = useState([]);
@@ -61,11 +60,11 @@ export default function Dashboard({ user, onLogout }) {
     course: 'Administração',
     professor_name: '',
     subject: '',
+    reservation_type: 'recorrente',
   });
 
   const [feedback, setFeedback] = useState({ type: '', message: '' });
 
-  // Regras de negócio para campos dinâmicos
   const semDisciplina = ['Pós-graduação', 'Mestrado', 'Escola de Aplicação', 'Empresa Júnior'].includes(formData.course);
   const semProfessor = formData.course === 'Empresa Júnior';
 
@@ -89,7 +88,6 @@ export default function Dashboard({ user, onLogout }) {
     }
   }
 
-  // Apenas a coordenação pode abrir o modal de criação
   function handleOpenNewModal() {
     if (!isCoordenacao) return;
     setEditBookingId(null);
@@ -99,11 +97,11 @@ export default function Dashboard({ user, onLogout }) {
       course: 'Administração',
       professor_name: '',
       subject: '',
+      reservation_type: 'recorrente',
     });
     setShowModal(true);
   }
 
-  // Apenas a coordenação pode abrir o modal de edição
   function handleEditClick(booking) {
     if (!isCoordenacao) return;
     const datePart = booking.start_time.split('T')[0];
@@ -116,12 +114,12 @@ export default function Dashboard({ user, onLogout }) {
       course: booking.course || 'Administração',
       professor_name: booking.professor_name || '',
       subject: booking.subject || '',
+      reservation_type: booking.reservation_type || 'recorrente',
     });
     setEditBookingId(booking.id);
     setShowModal(true);
   }
 
-  // Envio do formulário (Criar ou Atualizar)
   async function handleSubmitBooking(e) {
     e.preventDefault();
     if (!isCoordenacao) return;
@@ -137,6 +135,7 @@ export default function Dashboard({ user, onLogout }) {
       professor_name: semProfessor ? 'Empresa Júnior' : formData.professor_name,
       subject: semDisciplina ? formData.course : formData.subject,
       turn: formData.turn,
+      reservation_type: formData.reservation_type,
       start_time: `${selectedDate}T${start}`,
       end_time: `${selectedDate}T${end}`,
     };
@@ -157,7 +156,6 @@ export default function Dashboard({ user, onLogout }) {
     }
   }
 
-  // Cancelamento de reserva
   async function handleDeleteBooking(id) {
     if (!isCoordenacao) return;
     if (!window.confirm('Tem a certeza de que deseja cancelar esta reserva?')) return;
@@ -276,34 +274,48 @@ export default function Dashboard({ user, onLogout }) {
                 })}
               </div>
 
-              {/* Destaque de Acessibilidade */}
-              {currentRoomData && (
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  backgroundColor: '#EFF6FF',
-                  border: '1px solid #BFDBFE',
-                  color: '#1E3A8A',
-                  padding: '6px 14px',
-                  borderRadius: '20px',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  marginTop: '4px'
-                }}>
-                  <span>📍 {currentRoomData.name}</span>
-                  <span>|</span>
-                  <span>
-                    {currentRoomData.building 
-                      ? (currentRoomData.building.toLowerCase().startsWith('bloco') ? currentRoomData.building : `Bloco ${currentRoomData.building}`)
-                      : 'Bloco A'}
-                  </span>
-                  <span>|</span>
-                  <span style={{ color: currentRoomData.floor === 'Térreo' ? '#16A34A' : '#1E3A8A' }}>
-                    {currentRoomData.floor || 'Térreo'} {currentRoomData.floor === 'Térreo' && '✓ (Acesso Facilitado)'}
-                  </span>
+              {/* Destaque de Acessibilidade e Legenda de Cores */}
+              <div className="flex flex-wrap items-center justify-between gap-3 mt-2">
+                {currentRoomData && (
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    backgroundColor: '#EFF6FF',
+                    border: '1px solid #BFDBFE',
+                    color: '#1E3A8A',
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: '600'
+                  }}>
+                    <span>📍 {currentRoomData.name}</span>
+                    <span>|</span>
+                    <span>
+                      {currentRoomData.building 
+                        ? (currentRoomData.building.toLowerCase().startsWith('bloco') ? currentRoomData.building : `Bloco ${currentRoomData.building}`)
+                        : 'Bloco A'}
+                    </span>
+                    <span>|</span>
+                    <span style={{ color: currentRoomData.floor === 'Térreo' ? '#16A34A' : '#1E3A8A' }}>
+                      {currentRoomData.floor || 'Térreo'} {currentRoomData.floor === 'Térreo' && '✓ (Acesso Facilitado)'}
+                    </span>
+                  </div>
+                )}
+
+                {/* Legenda Institucional Limpa */}
+                <div className="flex items-center gap-3 text-xs text-slate-600 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                  <span className="font-semibold text-slate-500 uppercase text-[10px] tracking-wider">Legenda:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-blue-600 border border-blue-700"></span>
+                    <span>Aula Regular</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 border border-amber-600"></span>
+                    <span>Evento / Extra</span>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           );
         })()}
@@ -323,7 +335,7 @@ export default function Dashboard({ user, onLogout }) {
           </div>
 
           {TURNS.map((turn) => (
-            <div key={turn} className="grid grid-cols-6 border-b border-slate-100 min-h-[130px]">
+            <div key={turn} className="grid grid-cols-6 border-b border-slate-100 min-h-[135px]">
               <div className="p-4 bg-slate-50/50 border-r border-slate-200 flex flex-col justify-center items-center text-center">
                 <span className="font-bold text-slate-800">{turn}</span>
                 <span className="text-xs text-slate-400 mt-1 flex items-center gap-1">
@@ -338,14 +350,20 @@ export default function Dashboard({ user, onLogout }) {
                   (b) => b.turn === turn && b.start_time && b.start_time.split('T')[0] === targetDate
                 );
 
+                const isEventual = booking?.reservation_type === 'eventual';
+
                 return (
                   <div key={day} className="p-2 border-r border-slate-100 flex flex-col justify-center">
                     {booking ? (
-                      <div className="bg-blue-50/80 border border-blue-200 rounded-lg p-3 text-sm flex flex-col justify-between h-full shadow-sm relative group">
+                      <div className={`rounded-lg p-3 text-sm flex flex-col justify-between h-full shadow-sm relative transition-all border-l-4 ${
+                        isEventual 
+                          ? 'bg-amber-50/70 border-l-amber-500 border-y border-r border-amber-200' 
+                          : 'bg-blue-50/70 border-l-blue-600 border-y border-r border-blue-200'
+                      }`}>
                         
                         {/* Botões de Ação para a Coordenação */}
                         {isCoordenacao && (
-                          <div className="absolute top-2 right-2 flex gap-1.5 bg-white/80 p-1 rounded-md shadow-xs">
+                          <div className="absolute top-2 right-2 flex gap-1.5 bg-white/90 p-1 rounded-md shadow-xs">
                             <button
                               onClick={() => handleEditClick(booking)}
                               className="text-slate-400 hover:text-blue-600 transition cursor-pointer"
@@ -364,21 +382,31 @@ export default function Dashboard({ user, onLogout }) {
                         )}
 
                         <div>
-                          {/* Tag com o Curso selecionado */}
-                          <div className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1.5 uppercase tracking-wide">
-                            <GraduationCap size={11} className="flex-shrink-0" />
-                            <span clasName="truncate max-w-[140px]">
-                              {booking.course || 'Geral'}
+                          {/* Badges: Natureza da Reserva + Curso */}
+                          <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                              isEventual 
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300' 
+                                : 'bg-blue-100 text-blue-900 border border-blue-200'
+                            }`}>
+                              {isEventual ? 'Evento / Extra' : 'Regular'}
+                            </span>
+
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-white/80 text-slate-700 border border-slate-200 truncate max-w-[120px]">
+                              <GraduationCap size={11} className="flex-shrink-0 text-slate-500" />
+                              <span className="truncate">{booking.course || 'Geral'}</span>
                             </span>
                           </div>
 
-                          {/* Disciplina / Finalidade */}
-                          <div className={`font-semibold text-blue-950 flex items-center gap-1.5 line-clamp-2 leading-tight ${isCoordenacao ? 'pr-8' : ''}`}>
-                            <BookOpen size={14} className="text-blue-600 flex-shrink-0" />
+                          {/* Disciplina / Motivo */}
+                          <div className={`font-semibold flex items-center gap-1.5 line-clamp-2 leading-tight ${
+                            isEventual ? 'text-amber-950' : 'text-blue-950'
+                          } ${isCoordenacao ? 'pr-8' : ''}`}>
+                            <BookOpen size={14} className={isEventual ? 'text-amber-700 flex-shrink-0' : 'text-blue-600 flex-shrink-0'} />
                             <span>{booking.subject}</span>
                           </div>
 
-                          {/* Nome do Professor */}
+                          {/* Professor / Responsável */}
                           {booking.professor_name && (
                             <div className="text-slate-600 text-xs mt-1.5 flex items-center gap-1.5">
                               <User size={13} className="text-slate-400 flex-shrink-0" />
@@ -387,8 +415,12 @@ export default function Dashboard({ user, onLogout }) {
                           )}
                         </div>
 
-                        <div className="mt-2 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded text-center w-fit uppercase tracking-wider">
-                          Ocupado
+                        <div className={`mt-2 text-[10px] font-bold px-2 py-0.5 rounded text-center w-fit uppercase tracking-wider border ${
+                          isEventual
+                            ? 'bg-amber-100/60 text-amber-800 border-amber-300'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}>
+                          {isEventual ? 'Ocupado (Evento)' : 'Ocupado'}
                         </div>
                       </div>
                     ) : (
@@ -404,7 +436,7 @@ export default function Dashboard({ user, onLogout }) {
         </div>
       </main>
 
-      {/* Modal Formulário (apenas abre para a Coordenação) */}
+      {/* Modal Formulário */}
       {showModal && isCoordenacao && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl border border-slate-100 w-full max-w-md p-6">
@@ -421,6 +453,37 @@ export default function Dashboard({ user, onLogout }) {
             </div>
 
             <form onSubmit={handleSubmitBooking} className="space-y-4">
+              {/* Seletor de Tipo de Atividade Sóbrio */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1.5">
+                  Tipo de Ocupação
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, reservation_type: 'recorrente' })}
+                    className={`py-2 px-3 rounded-lg border text-xs font-bold transition cursor-pointer text-center ${
+                      formData.reservation_type === 'recorrente'
+                        ? 'bg-blue-50 border-blue-600 text-blue-900'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Aula Regular (Semanal)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, reservation_type: 'eventual' })}
+                    className={`py-2 px-3 rounded-lg border text-xs font-bold transition cursor-pointer text-center ${
+                      formData.reservation_type === 'eventual'
+                        ? 'bg-amber-50 border-amber-500 text-amber-900'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Evento / Aula Extra
+                  </button>
+                </div>
+              </div>
+
               {/* Sala */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Sala</label>
@@ -491,11 +554,11 @@ export default function Dashboard({ user, onLogout }) {
               {/* Professor */}
               {!semProfessor && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Professor(a)</label>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Professor(a) / Responsável</label>
                   <input
                     type="text"
                     required
-                    placeholder="Ex: Prof. Carlos"
+                    placeholder="Ex: Prof. Carlos ou Nome do Responsável"
                     value={formData.professor_name}
                     onChange={(e) => setFormData({ ...formData, professor_name: e.target.value })}
                     className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-blue-600"
@@ -503,14 +566,16 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
               )}
 
-              {/* Disciplina */}
+              {/* Disciplina / Título */}
               {!semDisciplina && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Disciplina</label>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+                    {formData.reservation_type === 'eventual' ? 'Título do Evento / Atividade' : 'Disciplina'}
+                  </label>
                   <input
                     type="text"
                     required
-                    placeholder="Ex: Teoria Geral da Administração"
+                    placeholder={formData.reservation_type === 'eventual' ? 'Ex: Palestra Magna ou Defesa de TCC' : 'Ex: Teoria Geral da Administração'}
                     value={formData.subject}
                     onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                     className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-blue-600"
