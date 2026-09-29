@@ -4,8 +4,7 @@ import {
   fetchBookings, 
   createBooking, 
   deleteBooking, 
-  updateBooking, 
-  createRoom 
+  updateBooking 
 } from '../api/bookingApi';
 import { 
   Clock, 
@@ -18,7 +17,6 @@ import {
   AlertCircle, 
   CheckCircle, 
   LogOut,
-  Building2,
   XCircle
 } from 'lucide-react';
 import logoIcon from '../assets/logo-icon.png';
@@ -26,7 +24,7 @@ import logoIcon from '../assets/logo-icon.png';
 const DAYS_OF_WEEK = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 const TURNS = ['Manhã', 'Tarde', 'Noite'];
 
-// Mapa de índice de dia da semana do JavaScript (0 = Domingo, 1 = Segunda, ..., 6 = Sábado)
+// Mapeamento do getDay() do JavaScript (1 = Segunda ... 6 = Sábado)
 const DAY_INDEX_MAP = {
   1: 'Segunda',
   2: 'Terça',
@@ -74,7 +72,6 @@ const TURN_HOURS = {
   'Noite': { start: '18:30:00', end: '22:30:00' },
 };
 
-// Extrai o nome do dia (Segunda a Sábado) a partir de uma string ISO ou YYYY-MM-DD
 function getDayNameFromDateString(dateStr) {
   if (!dateStr) return null;
   const rawDate = dateStr.split('T')[0];
@@ -91,17 +88,9 @@ export default function Dashboard({ user, onLogout }) {
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Modal de Reserva
+  // Controle do Modal de Reservas
   const [showModal, setShowModal] = useState(false);
   const [editBookingId, setEditBookingId] = useState(null);
-
-  // Modal de Cadastro Seguro de Nova Sala
-  const [showRoomModal, setShowRoomModal] = useState(false);
-  const [roomFormData, setRoomFormData] = useState({
-    name: '',
-    building: 'Bloco A',
-    floor: 'Térreo'
-  });
 
   const [formData, setFormData] = useState({
     day: 'Segunda',
@@ -171,7 +160,6 @@ export default function Dashboard({ user, onLogout }) {
     e.preventDefault();
     if (!isCoordenacao) return;
 
-    // Impedir reservas no sábado à noite
     if (formData.day === 'Sábado' && formData.turn === 'Noite') {
       setFeedback({ type: 'error', message: 'A FCAP não possui expediente no Sábado à noite.' });
       return;
@@ -221,23 +209,6 @@ export default function Dashboard({ user, onLogout }) {
     }
   }
 
-  // Cadastro de nova sala
-  async function handleCreateRoom(e) {
-    e.preventDefault();
-    if (!isCoordenacao) return;
-
-    try {
-      const newRoom = await createRoom(roomFormData);
-      setRooms((prev) => [...prev, newRoom]);
-      setSelectedRoom(newRoom.id);
-      setShowRoomModal(false);
-      setRoomFormData({ name: '', building: 'Bloco A', floor: 'Térreo' });
-      setFeedback({ type: 'success', message: `Sala ${newRoom.name} cadastrada com sucesso!` });
-    } catch (err) {
-      setFeedback({ type: 'error', message: err.message || 'Erro ao cadastrar nova sala.' });
-    }
-  }
-
   const activeBookings = bookings.filter((b) => b.room_id === selectedRoom);
 
   return (
@@ -259,24 +230,13 @@ export default function Dashboard({ user, onLogout }) {
 
           <div className="flex items-center gap-2 sm:gap-3">
             {isCoordenacao && (
-              <>
-                <button
-                  onClick={() => setShowRoomModal(true)}
-                  className="hidden sm:flex items-center gap-1.5 bg-blue-800 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-medium text-xs transition border border-blue-700 cursor-pointer"
-                  title="Cadastrar Nova Sala"
-                >
-                  <Building2 size={15} />
-                  <span>Nova Sala</span>
-                </button>
-
-                <button
-                  onClick={handleOpenNewModal}
-                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-4 py-2 rounded-lg font-medium shadow transition cursor-pointer text-xs sm:text-sm"
-                >
-                  <Plus size={16} />
-                  <span>Nova Reserva</span>
-                </button>
-              </>
+              <button
+                onClick={handleOpenNewModal}
+                className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-4 py-2 rounded-lg font-medium shadow transition cursor-pointer text-xs sm:text-sm"
+              >
+                <Plus size={16} />
+                <span>Nova Reserva</span>
+              </button>
             )}
 
             {onLogout && (
@@ -309,7 +269,7 @@ export default function Dashboard({ user, onLogout }) {
             </div>
             <button 
               onClick={() => setFeedback({ type: '', message: '' })}
-              className="text-slate-400 hover:text-slate-600"
+              className="text-slate-400 hover:text-slate-600 cursor-pointer"
             >
               ✕
             </button>
@@ -324,7 +284,7 @@ export default function Dashboard({ user, onLogout }) {
           const currentRoomData = rooms.find((r) => r.id === selectedRoom);
           return (
             <div className="mb-4">
-              <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-thin">
+              <div className="flex gap-2.5 overflow-x-auto pb-2">
                 {rooms.map((room) => {
                   const isSelected = selectedRoom === room.id;
                   const buildingText = room.building
@@ -362,15 +322,6 @@ export default function Dashboard({ user, onLogout }) {
                     </button>
                   );
                 })}
-
-                {isCoordenacao && (
-                  <button
-                    onClick={() => setShowRoomModal(true)}
-                    className="sm:hidden px-3 py-2 border border-dashed border-blue-400 text-blue-700 bg-blue-50/50 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1"
-                  >
-                    <Plus size={14} /> Nova Sala
-                  </button>
-                )}
               </div>
 
               {/* Destaque de Acessibilidade e Legenda */}
@@ -419,7 +370,7 @@ export default function Dashboard({ user, onLogout }) {
           );
         })()}
 
-        {/* Grade Semanal Responsiva com Rolagem Horizontal (overflow-x-auto e min-w) */}
+        {/* Grade Semanal com Rolagem Horizontal Suave */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
           <div className="min-w-[880px]">
             {/* Cabeçalho da Grade: 7 Colunas (Turno + 6 Dias) */}
@@ -447,7 +398,7 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
 
                 {DAYS_OF_WEEK.map((day) => {
-                  // Regra especial da FCAP: Sábado à noite não tem expediente
+                  // Sábado à noite não tem expediente
                   if (day === 'Sábado' && turn === 'Noite') {
                     return (
                       <div 
@@ -463,9 +414,7 @@ export default function Dashboard({ user, onLogout }) {
 
                   const targetDate = WEEK_DATES[day];
 
-                  // Resolução Definitiva da Ocupação:
-                  // 1. Recorrente: pareia se pertencer ao mesmo dia da semana e mesmo turno
-                  // 2. Eventual: requer data exata da semana visualizada
+                  // Identificação de Reserva: Recorrente (por dia da semana) vs Eventual (por data exata)
                   const booking = activeBookings.find((b) => {
                     if (b.turn !== turn) return false;
                     const bDate = b.start_time?.split('T')[0];
@@ -487,7 +436,6 @@ export default function Dashboard({ user, onLogout }) {
                             ? 'bg-amber-50/70 border-l-amber-500 border-y border-r border-amber-200' 
                             : 'bg-blue-50/70 border-l-blue-600 border-y border-r border-blue-200'
                         }`}>
-                          
                           {/* Ações da Coordenação */}
                           {isCoordenacao && (
                             <div className="absolute top-2 right-2 flex gap-1 bg-white/95 p-1 rounded shadow-xs">
@@ -509,7 +457,7 @@ export default function Dashboard({ user, onLogout }) {
                           )}
 
                           <div>
-                            {/* Badges de Identificação */}
+                            {/* Badges */}
                             <div className="flex flex-wrap items-center gap-1 mb-1.5">
                               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
                                 isEventual 
@@ -725,82 +673,6 @@ export default function Dashboard({ user, onLogout }) {
                   className="flex-1 px-4 py-2 bg-blue-900 text-white rounded-lg text-sm font-medium hover:bg-blue-800 transition cursor-pointer"
                 >
                   {editBookingId ? 'Atualizar' : 'Confirmar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Cadastro de Nova Sala (Coordenação) */}
-      {showRoomModal && isCoordenacao && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-100 w-full max-w-sm p-5 sm:p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <Building2 size={18} className="text-blue-900" />
-                Nova Sala de Aula
-              </h2>
-              <button 
-                onClick={() => setShowRoomModal(false)} 
-                className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateRoom} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Nome / Identificação</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Sala 104, Lab 02, Mini-Auditório"
-                  value={roomFormData.name}
-                  onChange={(e) => setRoomFormData({ ...roomFormData, name: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-blue-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Bloco / Pavilhão</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Bloco A, Bloco B, Anexo"
-                  value={roomFormData.building}
-                  onChange={(e) => setRoomFormData({ ...roomFormData, building: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-blue-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Andar / Localização</label>
-                <select
-                  value={roomFormData.floor}
-                  onChange={(e) => setRoomFormData({ ...roomFormData, floor: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-blue-600 bg-slate-50"
-                >
-                  <option value="Térreo">Térreo (Acesso Facilitado)</option>
-                  <option value="1º Andar">1º Andar</option>
-                  <option value="2º Andar">2º Andar</option>
-                  <option value="3º Andar">3º Andar</option>
-                </select>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowRoomModal(false)}
-                  className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-900 text-white rounded-lg text-sm font-medium hover:bg-blue-800 transition cursor-pointer"
-                >
-                  Cadastrar Sala
                 </button>
               </div>
             </form>
