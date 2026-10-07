@@ -11,6 +11,20 @@ export async function fetchRooms() {
   }
 }
 
+export async function updateRoom(id, data) {
+  try {
+    const response = await api.put(`/rooms/${id}`, data);
+    return response.data;
+  } catch (err) {
+    const message =
+      err.response?.data?.message ||
+      err.response?.data?.error ||
+      'Erro ao atualizar dados da sala.';
+    throw new Error(message);
+  }
+}
+
+// Mantidas como utilitários caso precise futuramente
 export async function createRoom(roomData) {
   try {
     const response = await api.post('/rooms', roomData);
