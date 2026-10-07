@@ -8,7 +8,11 @@ room_bp = Blueprint("rooms", __name__, url_prefix="/api/rooms")
 @room_bp.route("", methods=["GET"])
 def get_rooms():
     """Lista todas as salas cadastradas com seus detalhes técnicos."""
-    rooms = Room.query.order_by(Room.name.asc()).all()
+    rooms = Room.query.order_by(
+        Room.building.asc(),
+        Room.floor.asc(),
+        Room.name.asc()
+    ).all()
     return jsonify([room.to_dict() for room in rooms]), 200
 
 @room_bp.route("/<int:room_id>", methods=["PUT"])

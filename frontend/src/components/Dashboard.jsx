@@ -135,10 +135,24 @@ export default function Dashboard({ user, onLogout }) {
     try {
       setLoading(true);
       const [roomsData, bookingsData] = await Promise.all([fetchRooms(), fetchBookings()]);
-      setRooms(roomsData);
+      
+      // Ordena por Bloco (Bloco A -> Bloco B -> Bloco C) e depois Nome natural (Sala 1, 2, 10...)
+      const sortedRooms = [...roomsData].sort((a, b) => {
+        const buildingA = a.building || 'Bloco A';
+        const buildingB = b.building || 'Bloco A';
+        
+        // 1º critério: Bloco (A, B, C)
+        const buildingCompare = buildingA.localeCompare(buildingB, 'pt-BR', { sensitivity: 'base' });
+        if (buildingCompare !== 0) return buildingCompare;
+
+        // 2º critério: Nome da sala com ordenação natural (Sala 2 antes de Sala 10)
+        return (a.name || '').localeCompare(b.name || '', 'pt-BR', { numeric: true, sensitivity: 'base' });
+      });
+
+      setRooms(sortedRooms);
       setBookings(bookingsData);
-      if (roomsData.length > 0 && !selectedRoom) {
-        setSelectedRoom(roomsData[0].id);
+      if (sortedRooms.length > 0 && !selectedRoom) {
+        setSelectedRoom(sortedRooms[0].id);
       }
     } catch (err) {
       setFeedback({ type: 'error', message: 'Falha ao conectar com o servidor da FCAP.' });
