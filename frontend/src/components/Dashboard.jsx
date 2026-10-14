@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   fetchRooms, 
   fetchBookings, 
@@ -21,7 +21,10 @@ import {
   XCircle,
   SlidersHorizontal,
   Calendar,
-  Layers
+  Layers,
+  ChevronDown,
+  Building2,
+  Sparkles
 } from 'lucide-react';
 import logoIcon from '../assets/logo-icon.png';
 
@@ -83,6 +86,15 @@ function getDayNameFromDateString(dateStr) {
   return DAY_INDEX_MAP[d.getDay()] || null;
 }
 
+// Filtra apenas Auditórios, Laboratórios e Congregação (o Anfiteatro permanece como sala de aula)
+function isItinerantSpace(room) {
+  if (!room || !room.name) return false;
+  const lower = room.name.toLowerCase();
+  return lower.includes('auditório') || lower.includes('auditorio') || 
+         lower.includes('laboratório') || lower.includes('laboratorio') || 
+         lower.includes('congregação') || lower.includes('congregacao');
+}
+
 export default function Dashboard({ user, onLogout }) {
   const isCoordenacao = user?.role === 'coordenacao';
 
@@ -91,20 +103,28 @@ export default function Dashboard({ user, onLogout }) {
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Alternador de visão: 'grade' (Grade Semanal) ou 'livres' (Radar de Salas Livres)
+  // Controle de viewport via JS para contornar falha de media queries do CDN do Tailwind
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
+
+  // Categoria de espaço ativa: 'salas' (Aulas de semestre) ou 'itinerantes' (Eventos e pontuais)
+  const [spaceCategory, setSpaceCategory] = useState('salas');
+
+  // Alternador de visão principal: 'grade' (Grade Semanal) ou 'livres' (Radar de Salas Livres)
   const [currentView, setCurrentView] = useState('grade');
 
-  // Filtros da visão de Salas Livres
+  // Filtros para o Radar de Salas Livres
   const [freeRoomsFilter, setFreeRoomsFilter] = useState({
     day: 'Segunda',
-    turn: 'Noite'
+    turn: 'Noite',
+    categoryOnly: 'todas'
   });
 
-  // Modal de Reservas
+  // Modais
   const [showModal, setShowModal] = useState(false);
   const [editBookingId, setEditBookingId] = useState(null);
 
-  // Modal de Ficha Técnica / Edição da Sala
   const [showRoomDetailsModal, setShowRoomDetailsModal] = useState(false);
   const [roomEditForm, setRoomEditForm] = useState({
     capacity: 55,
@@ -127,6 +147,15 @@ export default function Dashboard({ user, onLogout }) {
   const semDisciplina = ['Pós-graduação', 'Mestrado', 'Escola de Aplicação', 'Empresa Júnior'].includes(formData.course);
   const semProfessor = formData.course === 'Empresa Júnior';
 
+  // Monitora a largura da tela dinamicamente
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -135,24 +164,22 @@ export default function Dashboard({ user, onLogout }) {
     try {
       setLoading(true);
       const [roomsData, bookingsData] = await Promise.all([fetchRooms(), fetchBookings()]);
-      
-      // Ordena por Bloco (Bloco A -> Bloco B -> Bloco C) e depois Nome natural (Sala 1, 2, 10...)
+
+      // Ordenação: Bloco (A, B, C) e depois nome natural
       const sortedRooms = [...roomsData].sort((a, b) => {
         const buildingA = a.building || 'Bloco A';
         const buildingB = b.building || 'Bloco A';
-        
-        // 1º critério: Bloco (A, B, C)
         const buildingCompare = buildingA.localeCompare(buildingB, 'pt-BR', { sensitivity: 'base' });
         if (buildingCompare !== 0) return buildingCompare;
-
-        // 2º critério: Nome da sala com ordenação natural (Sala 2 antes de Sala 10)
         return (a.name || '').localeCompare(b.name || '', 'pt-BR', { numeric: true, sensitivity: 'base' });
       });
 
       setRooms(sortedRooms);
       setBookings(bookingsData);
+
       if (sortedRooms.length > 0 && !selectedRoom) {
-        setSelectedRoom(sortedRooms[0].id);
+        const firstRegular = sortedRooms.find((r) => !isItinerantSpace(r)) || sortedRooms[0];
+        setSelectedRoom(firstRegular.id);
       }
     } catch (err) {
       setFeedback({ type: 'error', message: 'Falha ao conectar com o servidor da FCAP.' });
@@ -161,7 +188,24 @@ export default function Dashboard({ user, onLogout }) {
     }
   }
 
+  // Separação dos grupos de salas
+  const regularRooms = useMemo(() => rooms.filter((r) => !isItinerantSpace(r)), [rooms]);
+  const itinerantRooms = useMemo(() => rooms.filter((r) => isItinerantSpace(r)), [rooms]);
+
+  // Lista a exibir conforme a categoria ativa
+  const currentCategoryRooms = spaceCategory === 'salas' ? regularRooms : itinerantRooms;
   const currentRoomData = rooms.find((r) => r.id === selectedRoom);
+
+  function handleCategoryChange(newCategory) {
+    setSpaceCategory(newCategory);
+    const targetList = newCategory === 'salas' ? regularRooms : itinerantRooms;
+    if (targetList.length > 0) {
+      const alreadyInList = targetList.some((r) => r.id === selectedRoom);
+      if (!alreadyInList) {
+        setSelectedRoom(targetList[0].id);
+      }
+    }
+  }
 
   function handleOpenRoomDetails() {
     if (!currentRoomData) return;
@@ -183,9 +227,9 @@ export default function Dashboard({ user, onLogout }) {
       const updated = res.room || res;
       setRooms((prev) => prev.map((r) => (r.id === selectedRoom ? { ...r, ...updated } : r)));
       setShowRoomDetailsModal(false);
-      setFeedback({ type: 'success', message: 'Ficha técnica da sala atualizada com sucesso!' });
+      setFeedback({ type: 'success', message: 'Ficha técnica do espaço atualizada com sucesso!' });
     } catch (err) {
-      setFeedback({ type: 'error', message: err.message || 'Erro ao atualizar dados da sala.' });
+      setFeedback({ type: 'error', message: err.message || 'Erro ao atualizar dados do espaço.' });
     } finally {
       setSavingRoom(false);
     }
@@ -194,13 +238,16 @@ export default function Dashboard({ user, onLogout }) {
   function handleOpenNewModal() {
     if (!isCoordenacao) return;
     setEditBookingId(null);
+
+    const defaultType = isItinerantSpace(currentRoomData) ? 'eventual' : 'recorrente';
+
     setFormData({
       day: 'Segunda',
       turn: 'Manhã',
-      course: 'Administração',
+      course: isItinerantSpace(currentRoomData) ? 'Evento' : 'Administração',
       professor_name: '',
       subject: '',
-      reservation_type: 'recorrente',
+      reservation_type: defaultType,
     });
     setShowModal(true);
   }
@@ -278,7 +325,7 @@ export default function Dashboard({ user, onLogout }) {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      {/* Header Institucional */}
+      {/* Cabeçalho Institucional */}
       <header className="bg-blue-900 text-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -344,14 +391,14 @@ export default function Dashboard({ user, onLogout }) {
 
       {/* Conteúdo Principal */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full">
-        {/* Barra Superior: Alternador de Visualização (Grade vs Salas Livres) */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div className="flex items-center bg-slate-200 p-1 rounded-xl text-xs font-semibold">
+        {/* Barra Superior: Alternador de Visão (Grade vs Radar de Livres) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <div className="flex items-center bg-slate-200/80 p-1 rounded-xl text-xs font-semibold">
             <button
               onClick={() => setCurrentView('grade')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
                 currentView === 'grade'
-                  ? 'bg-white text-blue-900 shadow-sm'
+                  ? 'bg-white text-blue-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -363,7 +410,7 @@ export default function Dashboard({ user, onLogout }) {
               onClick={() => setCurrentView('livres')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
                 currentView === 'livres'
-                  ? 'bg-white text-blue-900 shadow-sm'
+                  ? 'bg-white text-blue-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -374,108 +421,157 @@ export default function Dashboard({ user, onLogout }) {
         </div>
 
         {/* ========================================================================= */}
-        {/* VISÃO 1: GRADE SEMANAL (PADRÃO) */}
+        {/* VISÃO 1: GRADE SEMANAL (HÍBRIDA: CARROSSEL NO PC / SELECT NO MOBILE)      */}
         {/* ========================================================================= */}
         {currentView === 'grade' && (
           <>
-            {/* Seletor de Salas com Bloco e Andar */}
-            <div className="mb-4">
-              <div className="flex gap-2.5 overflow-x-auto pb-2">
-                {rooms.map((room) => {
-                  const isSelected = selectedRoom === room.id;
-                  const buildingText = room.building
-                    ? (room.building.toLowerCase().startsWith('bloco') ? room.building : `Bloco ${room.building}`)
-                    : 'Bloco A';
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs mb-4">
+              {/* Abas de Categorias */}
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <div className="flex items-center bg-slate-100 p-1 rounded-lg">
+                  <button
+                    onClick={() => handleCategoryChange('salas')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition cursor-pointer ${
+                      spaceCategory === 'salas'
+                        ? 'bg-blue-900 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Building2 size={13} />
+                    <span>Salas de Aula ({regularRooms.length})</span>
+                  </button>
 
-                  return (
-                    <button
-                      key={room.id}
-                      onClick={() => setSelectedRoom(room.id)}
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        border: isSelected ? '2px solid #193C8A' : '1px solid #E2E8F0',
-                        backgroundColor: isSelected ? '#193C8A' : '#FFFFFF',
-                        color: isSelected ? '#FFFFFF' : '#334155',
-                        boxShadow: isSelected ? '0 4px 6px -1px rgba(25, 60, 138, 0.25)' : 'none',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: '2px',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <span style={{ fontWeight: '700', fontSize: '14px' }}>{room.name}</span>
-                      <span style={{ 
-                        fontSize: '11px', 
-                        color: isSelected ? '#BFDBFE' : '#64748B',
-                        fontWeight: '500'
-                      }}>
-                        {buildingText} — {room.floor || 'Térreo'}
-                      </span>
-                    </button>
-                  );
-                })}
+                  <button
+                    onClick={() => handleCategoryChange('itinerantes')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition cursor-pointer ${
+                      spaceCategory === 'itinerantes'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Sparkles size={13} />
+                    <span>Espaços Itinerantes ({itinerantRooms.length})</span>
+                  </button>
+                </div>
+
+                {/* Botão de Ficha Técnica / Editar Sala */}
+                {currentRoomData && (
+                  <button
+                    onClick={handleOpenRoomDetails}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer shadow-2xs"
+                    title="Ver capacidade, equipamentos e status"
+                  >
+                    <SlidersHorizontal size={13} className="text-blue-800" />
+                    <span>{isCoordenacao ? 'Ficha Técnica / Editar' : 'Ficha Técnica'}</span>
+                  </button>
+                )}
               </div>
 
-              {/* Destaque da Sala com Botão de Ficha Técnica e Legenda */}
-              <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
-                {currentRoomData && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      backgroundColor: '#EFF6FF',
-                      border: '1px solid #BFDBFE',
-                      color: '#1E3A8A',
-                      padding: '6px 14px',
-                      borderRadius: '20px',
-                      fontSize: '12px',
-                      fontWeight: '600'
-                    }}>
-                      <span>📍 {currentRoomData.name}</span>
-                      <span>|</span>
-                      <span>
-                        {currentRoomData.building 
-                          ? (currentRoomData.building.toLowerCase().startsWith('bloco') ? currentRoomData.building : `Bloco ${currentRoomData.building}`)
-                          : 'Bloco A'}
-                      </span>
-                      <span>|</span>
-                      <span style={{ color: currentRoomData.floor === 'Térreo' ? '#16A34A' : '#1E3A8A' }}>
-                        {currentRoomData.floor || 'Térreo'}
-                      </span>
+              {/* RENDERIZAÇÃO RESPONSIVA DINÂMICA (SUBSTITUI CLASSES HIDDEN/FLEX DO TAILWIND) */}
+              {isMobile ? (
+                /* VISÃO MOBILE (< 768px): Select nativo e compacto */
+                <div className="relative mt-2">
+                  <select
+                    value={selectedRoom || ''}
+                    onChange={(e) => setSelectedRoom(Number(e.target.value))}
+                    className="w-full appearance-none bg-slate-50 border border-slate-300 text-slate-800 text-xs font-bold rounded-lg pl-3 pr-8 py-2.5 outline-none focus:ring-2 focus:ring-blue-800/20 cursor-pointer shadow-2xs"
+                  >
+                    {currentCategoryRooms.map((r) => {
+                      const buildingText = r.building 
+                        ? (r.building.toLowerCase().startsWith('bloco') ? r.building : `Bloco ${r.building}`)
+                        : 'Bloco A';
+                      return (
+                        <option key={r.id} value={r.id}>
+                          {r.name} — {buildingText} ({r.floor || 'Térreo'})
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                </div>
+              ) : (
+                /* VISÃO DESKTOP (>= 768px): Carrossel de botões clicáveis */
+                <div 
+                  className="flex gap-2.5 overflow-x-auto pb-1 mt-2"
+                  style={{
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: '#CBD5E1 transparent'
+                  }}
+                >
+                  {currentCategoryRooms.map((room) => {
+                    const isSelected = selectedRoom === room.id;
+                    const buildingText = room.building
+                      ? (room.building.toLowerCase().startsWith('bloco') ? room.building : `Bloco ${room.building}`)
+                      : 'Bloco A';
+
+                    return (
+                      <button
+                        key={room.id}
+                        onClick={() => setSelectedRoom(room.id)}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          border: isSelected ? '2px solid #193C8A' : '1px solid #E2E8F0',
+                          backgroundColor: isSelected ? '#193C8A' : '#FFFFFF',
+                          color: isSelected ? '#FFFFFF' : '#334155',
+                          boxShadow: isSelected ? '0 4px 6px -1px rgba(25, 60, 138, 0.25)' : 'none',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '2px',
+                          transition: 'all 0.15s ease',
+                          flexShrink: 0
+                        }}
+                      >
+                        <span style={{ fontWeight: '700', fontSize: '13px' }}>{room.name}</span>
+                        <span style={{ 
+                          fontSize: '11px', 
+                          color: isSelected ? '#BFDBFE' : '#64748B',
+                          fontWeight: '500'
+                        }}>
+                          {buildingText} — {room.floor || 'Térreo'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Sub-barra: Localização e Legenda */}
+              {currentRoomData && (
+                <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-3 border-t border-slate-100 text-xs">
+                  <div className="flex items-center gap-2 text-slate-600 font-medium">
+                    <span className="font-bold text-slate-800">Localização:</span>
+                    <span>
+                      {currentRoomData.building 
+                        ? (currentRoomData.building.toLowerCase().startsWith('bloco') ? currentRoomData.building : `Bloco ${currentRoomData.building}`)
+                        : 'Bloco A'}
+                    </span>
+                    <span>•</span>
+                    <span className={currentRoomData.floor === 'Térreo' ? 'text-emerald-700 font-semibold' : 'text-slate-700'}>
+                      {currentRoomData.floor || 'Térreo'}
+                    </span>
+                    <span>•</span>
+                    <span className="text-slate-500">Capacidade: {currentRoomData.capacity || 55} lugares</span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-slate-600">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-blue-600 border border-blue-700"></span>
+                      <span>Aula Regular</span>
                     </div>
-
-                    {/* Botão de Ficha Técnica / Editar Sala */}
-                    <button
-                      onClick={handleOpenRoomDetails}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-blue-200 bg-white hover:bg-blue-50 text-blue-900 transition cursor-pointer shadow-2xs"
-                    >
-                      <SlidersHorizontal size={13} className="text-blue-700" />
-                      <span>{isCoordenacao ? 'Ficha Técnica / Editar' : 'Ficha Técnica'}</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Legenda Institucional Limpa */}
-                <div className="flex items-center gap-3 text-xs text-slate-600 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                  <span className="font-semibold text-slate-500 uppercase text-[10px] tracking-wider">Legenda:</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-blue-600 border border-blue-700"></span>
-                    <span>Aula Regular (Semanal)</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 border border-amber-600"></span>
-                    <span>Eventual / Extra</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500 border border-amber-600"></span>
+                      <span>Eventual / Extra</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
-            {/* Grade Semanal com Rolagem Horizontal Suave */}
+            {/* Grade Semanal */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
               <div className="min-w-[880px]">
                 <div className="grid grid-cols-7 bg-slate-100 border-b border-slate-200 text-center font-bold text-slate-700 py-3">
@@ -611,17 +707,27 @@ export default function Dashboard({ user, onLogout }) {
         )}
 
         {/* ========================================================================= */}
-        {/* VISÃO 2: RADAR DE SALAS LIVRES (DASHBOARD DA JANANDA) */}
+        {/* VISÃO 2: RADAR DE SALAS LIVRES                                            */}
         {/* ========================================================================= */}
         {currentView === 'livres' && (
           <div className="space-y-4">
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h3 className="text-sm font-bold text-slate-800">Radar de Ocupação Instantânea</h3>
-                <p className="text-xs text-slate-500">Consulte quais salas estão desocupadas em um dia e turno específicos.</p>
+                <p className="text-xs text-slate-500">Consulte quais salas estão desocupadas no dia e turno selecionados.</p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={freeRoomsFilter.categoryOnly}
+                  onChange={(e) => setFreeRoomsFilter({ ...freeRoomsFilter, categoryOnly: e.target.value })}
+                  className="border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold bg-slate-50 outline-none focus:border-blue-600"
+                >
+                  <option value="todas">Todos os Espaços</option>
+                  <option value="salas">Apenas Salas de Aula</option>
+                  <option value="itinerantes">Apenas Espaços Itinerantes</option>
+                </select>
+
                 <select
                   value={freeRoomsFilter.day}
                   onChange={(e) => setFreeRoomsFilter({ ...freeRoomsFilter, day: e.target.value })}
@@ -645,82 +751,97 @@ export default function Dashboard({ user, onLogout }) {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {rooms.map((room) => {
-                const targetDate = WEEK_DATES[freeRoomsFilter.day];
+              {rooms
+                .filter((r) => {
+                  if (freeRoomsFilter.categoryOnly === 'salas') return !isItinerantSpace(r);
+                  if (freeRoomsFilter.categoryOnly === 'itinerantes') return isItinerantSpace(r);
+                  return true;
+                })
+                .map((room) => {
+                  const targetDate = WEEK_DATES[freeRoomsFilter.day];
 
-                const booking = bookings.find((b) => {
-                  if (b.room_id !== room.id || b.turn !== freeRoomsFilter.turn) return false;
-                  const bDate = b.start_time?.split('T')[0];
-                  if (b.reservation_type === 'recorrente') {
-                    return getDayNameFromDateString(bDate) === freeRoomsFilter.day;
-                  } else {
-                    return bDate === targetDate;
-                  }
-                });
+                  const booking = bookings.find((b) => {
+                    if (b.room_id !== room.id || b.turn !== freeRoomsFilter.turn) return false;
+                    const bDate = b.start_time?.split('T')[0];
+                    if (b.reservation_type === 'recorrente') {
+                      return getDayNameFromDateString(bDate) === freeRoomsFilter.day;
+                    } else {
+                      return bDate === targetDate;
+                    }
+                  });
 
-                const isFree = !booking;
+                  const isFree = !booking;
+                  const isItin = isItinerantSpace(room);
 
-                return (
-                  <div
-                    key={room.id}
-                    className={`rounded-xl p-4 border transition shadow-xs flex flex-col justify-between ${
-                      isFree 
-                        ? 'bg-emerald-50/40 border-emerald-200' 
-                        : 'bg-white border-slate-200'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div>
-                          <h4 className="font-bold text-slate-800 text-sm">{room.name}</h4>
-                          <span className="text-xs text-slate-500">
-                            {room.building} — {room.floor || 'Térreo'}
+                  return (
+                    <div
+                      key={room.id}
+                      className={`rounded-xl p-4 border transition shadow-xs flex flex-col justify-between ${
+                        isFree 
+                          ? 'bg-emerald-50/40 border-emerald-200' 
+                          : 'bg-white border-slate-200'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <h4 className="font-bold text-slate-800 text-sm">{room.name}</h4>
+                              {isItin && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                                  Itinerante
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-slate-500">
+                              {room.building} — {room.floor || 'Térreo'}
+                            </span>
+                          </div>
+
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                            isFree
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : 'bg-rose-100 text-rose-800 border border-rose-300'
+                          }`}>
+                            {isFree ? 'Disponível' : 'Ocupada'}
                           </span>
                         </div>
 
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                          isFree
-                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                            : 'bg-rose-100 text-rose-800 border border-rose-300'
-                        }`}>
-                          {isFree ? 'Disponível' : 'Ocupada'}
-                        </span>
-                      </div>
-
-                      <div className="text-xs text-slate-600 space-y-1 mb-3">
-                        <p><strong>Capacidade:</strong> {room.capacity || 55} carteiras</p>
-                        <p className="line-clamp-1"><strong>Recursos:</strong> {room.resources || 'Quadro, TV'}</p>
-                        <p className="text-[11px] text-slate-500"><strong>Status:</strong> {room.status || 'Apta para aula'}</p>
-                      </div>
-
-                      {!isFree && (
-                        <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs text-slate-700 space-y-0.5">
-                          <p className="font-bold text-blue-900 line-clamp-1">{booking.subject}</p>
-                          <p className="text-slate-500">{booking.course} {booking.professor_name && `• ${booking.professor_name}`}</p>
+                        <div className="text-xs text-slate-600 space-y-1 mb-3">
+                          <p><strong>Capacidade:</strong> {room.capacity || 55} lugares</p>
+                          <p className="line-clamp-1"><strong>Recursos:</strong> {room.resources || 'Quadro, TV'}</p>
+                          <p className="text-[11px] text-slate-500"><strong>Status:</strong> {room.status || 'Apta para aula'}</p>
                         </div>
-                      )}
-                    </div>
 
-                    <div className="pt-3 mt-2 border-t border-slate-100 flex justify-end">
-                      <button
-                        onClick={() => {
-                          setSelectedRoom(room.id);
-                          setCurrentView('grade');
-                        }}
-                        className="text-xs font-semibold text-blue-700 hover:text-blue-900 cursor-pointer"
-                      >
-                        Ver grade completa →
-                      </button>
+                        {!isFree && (
+                          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs text-slate-700 space-y-0.5">
+                            <p className="font-bold text-blue-900 line-clamp-1">{booking.subject}</p>
+                            <p className="text-slate-500">{booking.course} {booking.professor_name && `• ${booking.professor_name}`}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-3 mt-2 border-t border-slate-100 flex justify-end">
+                        <button
+                          onClick={() => {
+                            setSpaceCategory(isItin ? 'itinerantes' : 'salas');
+                            setSelectedRoom(room.id);
+                            setCurrentView('grade');
+                          }}
+                          className="text-xs font-semibold text-blue-700 hover:text-blue-900 cursor-pointer"
+                        >
+                          Ver na grade semanal →
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
             </div>
           </div>
         )}
       </main>
 
-      {/* Modal: Ficha Técnica / Edição de Sala */}
+      {/* Modal: Ficha Técnica / Edição de Espaço */}
       {showRoomDetailsModal && currentRoomData && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl border border-slate-100 w-full max-w-md p-5 sm:p-6">
@@ -745,7 +866,7 @@ export default function Dashboard({ user, onLogout }) {
               <form onSubmit={handleSaveRoomDetails} className="space-y-3.5 mt-2">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                    Capacidade (Carteiras / Lugares)
+                    Capacidade (Lugares / Poltronas)
                   </label>
                   <input
                     type="number"
@@ -765,7 +886,7 @@ export default function Dashboard({ user, onLogout }) {
                   <textarea
                     rows="3"
                     required
-                    placeholder="Ex: 1 Smart TV 55 pol, 1 Quadro branco, Ar-condicionado"
+                    placeholder="Ex: Projetor Epson, Som integrado, 120 poltronas estofadas"
                     value={roomEditForm.resources}
                     onChange={(e) => setRoomEditForm({ ...roomEditForm, resources: e.target.value })}
                     className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-blue-600 resize-none"
@@ -781,10 +902,10 @@ export default function Dashboard({ user, onLogout }) {
                     onChange={(e) => setRoomEditForm({ ...roomEditForm, status: e.target.value })}
                     className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-blue-600 bg-slate-50"
                   >
-                    <option value="Apta para aula">Apta para aula (100% Operacional)</option>
+                    <option value="Apta para aula">Apta para uso (100% Operacional)</option>
                     <option value="Ar-condicionado em manutenção">Ar-condicionado em manutenção</option>
-                    <option value="Projetor/TV indisponível">Projetor/TV indisponível temporariamente</option>
-                    <option value="Interditada para reforma">Interditada para reforma</option>
+                    <option value="Projetor/TV indisponível">Projetor/Equipamento de som indisponível</option>
+                    <option value="Interditada para reforma">Interditada para reforma/manutenção</option>
                   </select>
                 </div>
 
@@ -809,7 +930,7 @@ export default function Dashboard({ user, onLogout }) {
               <div className="space-y-3 mt-3 text-sm text-slate-700">
                 <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
                   <span className="text-xs font-semibold text-slate-500 uppercase block mb-1">Capacidade</span>
-                  <p className="font-bold text-slate-800">{currentRoomData.capacity || 55} carteiras</p>
+                  <p className="font-bold text-slate-800">{currentRoomData.capacity || 55} lugares</p>
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
@@ -885,7 +1006,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Sala</label>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Espaço / Sala</label>
                 <select
                   value={selectedRoom}
                   onChange={(e) => setSelectedRoom(Number(e.target.value))}
