@@ -86,7 +86,6 @@ function getDayNameFromDateString(dateStr) {
   return DAY_INDEX_MAP[d.getDay()] || null;
 }
 
-// Filtra apenas Auditórios, Laboratórios e Congregação (o Anfiteatro permanece como sala de aula)
 function isItinerantSpace(room) {
   if (!room || !room.name) return false;
   const lower = room.name.toLowerCase();
@@ -103,13 +102,16 @@ export default function Dashboard({ user, onLogout }) {
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Controle de viewport via JS para contornar falha de media queries do CDN do Tailwind
+  // Responsividade via JS para evitar falha no Tailwind CDN
   const [isMobile, setIsMobile] = useState(
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   );
 
   // Categoria de espaço ativa: 'salas' (Aulas de semestre) ou 'itinerantes' (Eventos e pontuais)
   const [spaceCategory, setSpaceCategory] = useState('salas');
+
+  // Filtro por Prédio/Bloco para Salas de Aula Normais
+  const [selectedBuilding, setSelectedBuilding] = useState('Todos');
 
   // Alternador de visão principal: 'grade' (Grade Semanal) ou 'livres' (Radar de Salas Livres)
   const [currentView, setCurrentView] = useState('grade');
@@ -147,7 +149,6 @@ export default function Dashboard({ user, onLogout }) {
   const semDisciplina = ['Pós-graduação', 'Mestrado', 'Escola de Aplicação', 'Empresa Júnior'].includes(formData.course);
   const semProfessor = formData.course === 'Empresa Júnior';
 
-  // Monitora a largura da tela dinamicamente
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768);
@@ -165,7 +166,6 @@ export default function Dashboard({ user, onLogout }) {
       setLoading(true);
       const [roomsData, bookingsData] = await Promise.all([fetchRooms(), fetchBookings()]);
 
-      // Ordenação: Bloco (A, B, C) e depois nome natural
       const sortedRooms = [...roomsData].sort((a, b) => {
         const buildingA = a.building || 'Bloco A';
         const buildingB = b.building || 'Bloco A';
@@ -192,17 +192,74 @@ export default function Dashboard({ user, onLogout }) {
   const regularRooms = useMemo(() => rooms.filter((r) => !isItinerantSpace(r)), [rooms]);
   const itinerantRooms = useMemo(() => rooms.filter((r) => isItinerantSpace(r)), [rooms]);
 
-  // Lista a exibir conforme a categoria ativa
-  const currentCategoryRooms = spaceCategory === 'salas' ? regularRooms : itinerantRooms;
+  // Lista de Blocos únicos presentes nas salas normais
+  const availableBuildings = useMemo(() => {
+    const bSet = new Set();
+    regularRooms.forEach((r) => {
+      if (r.building) {
+        const formatted = r.building.toLowerCase().startsWith('bloco') 
+          ? r.building 
+          : `Bloco ${r.building}`;
+        bSet.add(formatted);
+      } else {
+        bSet.add('Bloco A');
+      }
+    });
+    return ['Todos', ...Array.from(bSet).sort()];
+  }, [regularRooms]);
+
+  // Filtra as salas da categoria ativa, aplicando o filtro de bloco se for 'salas'
+  const currentCategoryRooms = useMemo(() => {
+    if (spaceCategory === 'itinerantes') {
+      return itinerantRooms;
+    }
+    if (selectedBuilding === 'Todos') {
+      return regularRooms;
+    }
+    return regularRooms.filter((r) => {
+      const bName = r.building 
+        ? (r.building.toLowerCase().startsWith('bloco') ? r.building : `Bloco ${r.building}`)
+        : 'Bloco A';
+      return bName.toLowerCase() === selectedBuilding.toLowerCase();
+    });
+  }, [spaceCategory, selectedBuilding, regularRooms, itinerantRooms]);
+
   const currentRoomData = rooms.find((r) => r.id === selectedRoom);
 
   function handleCategoryChange(newCategory) {
     setSpaceCategory(newCategory);
-    const targetList = newCategory === 'salas' ? regularRooms : itinerantRooms;
+    const targetList = newCategory === 'salas' 
+      ? (selectedBuilding === 'Todos' ? regularRooms : regularRooms.filter((r) => {
+          const bName = r.building 
+            ? (r.building.toLowerCase().startsWith('bloco') ? r.building : `Bloco ${r.building}`)
+            : 'Bloco A';
+          return bName.toLowerCase() === selectedBuilding.toLowerCase();
+        }))
+      : itinerantRooms;
+
     if (targetList.length > 0) {
       const alreadyInList = targetList.some((r) => r.id === selectedRoom);
       if (!alreadyInList) {
         setSelectedRoom(targetList[0].id);
+      }
+    }
+  }
+
+  function handleBuildingChange(building) {
+    setSelectedBuilding(building);
+    const filtered = building === 'Todos'
+      ? regularRooms
+      : regularRooms.filter((r) => {
+          const bName = r.building 
+            ? (r.building.toLowerCase().startsWith('bloco') ? r.building : `Bloco ${r.building}`)
+            : 'Bloco A';
+          return bName.toLowerCase() === building.toLowerCase();
+        });
+
+    if (filtered.length > 0) {
+      const alreadyInList = filtered.some((r) => r.id === selectedRoom);
+      if (!alreadyInList) {
+        setSelectedRoom(filtered[0].id);
       }
     }
   }
@@ -421,12 +478,12 @@ export default function Dashboard({ user, onLogout }) {
         </div>
 
         {/* ========================================================================= */}
-        {/* VISÃO 1: GRADE SEMANAL (HÍBRIDA: CARROSSEL NO PC / SELECT NO MOBILE)      */}
+        {/* VISÃO 1: GRADE SEMANAL (HÍBRIDA COM FILTRO DE BLOCO)                       */}
         {/* ========================================================================= */}
         {currentView === 'grade' && (
           <>
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs mb-4">
-              {/* Abas de Categorias */}
+              {/* Abas Principais: Salas de Aula vs Itinerantes */}
               <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                 <div className="flex items-center bg-slate-100 p-1 rounded-lg">
                   <button
@@ -467,7 +524,32 @@ export default function Dashboard({ user, onLogout }) {
                 )}
               </div>
 
-              {/* RENDERIZAÇÃO RESPONSIVA DINÂMICA (SUBSTITUI CLASSES HIDDEN/FLEX DO TAILWIND) */}
+              {/* Subfiltro por Bloco/Prédio (Exclusivo para Salas de Aula) */}
+              {spaceCategory === 'salas' && availableBuildings.length > 2 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-2 pt-1 border-b border-slate-100 mb-2">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                    Prédio:
+                  </span>
+                  {availableBuildings.map((building) => {
+                    const isSelected = selectedBuilding === building;
+                    return (
+                      <button
+                        key={building}
+                        onClick={() => handleBuildingChange(building)}
+                        className={`text-xs px-2.5 py-1 rounded-md font-semibold transition cursor-pointer whitespace-nowrap ${
+                          isSelected
+                            ? 'bg-blue-100 text-blue-900 border border-blue-300'
+                            : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'
+                        }`}
+                      >
+                        {building}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Seleção Híbrida: Mobile (Select) vs Desktop (Carrossel) */}
               {isMobile ? (
                 /* VISÃO MOBILE (< 768px): Select nativo e compacto */
                 <div className="relative mt-2">
@@ -597,15 +679,16 @@ export default function Dashboard({ user, onLogout }) {
                     </div>
 
                     {DAYS_OF_WEEK.map((day) => {
+                      // Sábado à noite com destaque em cor mais escura e forte contraste
                       if (day === 'Sábado' && turn === 'Noite') {
                         return (
                           <div 
                             key={day} 
-                            className="p-2 border-r border-slate-100 bg-slate-50/80 flex flex-col items-center justify-center text-center text-slate-400 select-none"
+                            className="p-2 border-r border-slate-300 bg-slate-200 flex flex-col items-center justify-center text-center text-slate-600 select-none shadow-inner"
                           >
-                            <XCircle size={18} className="text-slate-300 mb-1" />
-                            <span className="text-[11px] font-semibold text-slate-400">Sem Expediente</span>
-                            <span className="text-[10px] text-slate-400">Noturno</span>
+                            <XCircle size={22} className="text-slate-500 mb-1" />
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Sem Expediente</span>
+                            <span className="text-[10px] font-semibold text-slate-500">Prédio Fechado</span>
                           </div>
                         );
                       }
